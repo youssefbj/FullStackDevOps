@@ -1,0 +1,421 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+data:
+  prometheus.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+        editable: true
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-config
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: 'default'
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-complete
+data:
+  fastapi-complete-dashboard.json: |
+    {
+      "id": null,
+      "title": "FastAPI DevOps Stack - Complete Monitoring",
+      "tags": ["fastapi", "devops", "prometheus", "kubernetes"],
+      "timezone": "browser",
+      "refresh": "5s",
+      "time": {
+        "from": "now-15m",
+        "to": "now"
+      },
+      "timepicker": {
+        "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"],
+        "time_options": ["5m", "15m", "1h", "6h", "12h", "24h", "2d", "7d", "30d"]
+      },
+      "panels": [
+        {
+          "id": 1,
+          "title": "🚀 API Request Rate (req/s)",
+          "type": "stat",
+          "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "mappings": [],
+              "thresholds": {
+                "steps": [
+                  {"color": "green", "value": null},
+                  {"color": "yellow", "value": 5},
+                  {"color": "red", "value": 10}
+                ]
+              },
+              "unit": "reqps",
+              "custom": {
+                "displayMode": "lcd",
+                "orientation": "horizontal"
+              }
+            }
+          },
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": ["lastNotNull"],
+              "fields": ""
+            },
+            "orientation": "auto",
+            "textMode": "auto",
+            "colorMode": "background",
+            "graphMode": "area",
+            "justifyMode": "auto"
+          },
+          "targets": [
+            {
+              "expr": "sum(rate(http_requests_total[1m]))",
+              "legendFormat": "Total Requests/sec",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "⚡ Response Time Percentiles",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 10, "x": 6, "y": 0},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "gradientMode": "opacity",
+                "spanNulls": false,
+                "insertNulls": false,
+                "showPoints": "never",
+                "pointSize": 5,
+                "stacking": {"mode": "none", "group": "A"},
+                "axisPlacement": "auto",
+                "axisLabel": "",
+                "scaleDistribution": {"type": "linear"},
+                "hideFrom": {"legend": false, "tooltip": false, "vis": false}
+              },
+              "mappings": [],
+              "thresholds": {
+                "steps": [
+                  {"color": "green", "value": null},
+                  {"color": "yellow", "value": 0.5},
+                  {"color": "red", "value": 1}
+                ]
+              },
+              "unit": "s",
+              "min": 0
+            }
+          },
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "none"},
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "values": ["min", "max", "mean"]
+            }
+          },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "95th percentile",
+              "refId": "A"
+            },
+            {
+              "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "50th percentile (median)",
+              "refId": "B"
+            },
+            {
+              "expr": "rate(http_request_duration_seconds_sum[5m]) / rate(http_request_duration_seconds_count[5m])",
+              "legendFormat": "Average",
+              "refId": "C"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "🎯 HTTP Status Codes Distribution",
+          "type": "piechart",
+          "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {
+                "hideFrom": {"legend": false, "tooltip": false, "vis": false}
+              },
+              "mappings": [
+                {"options": {"200": {"color": "green", "index": 0, "text": "200 Success"}}, "type": "value"},
+                {"options": {"404": {"color": "yellow", "index": 1, "text": "404 Not Found"}}, "type": "value"},
+                {"options": {"500": {"color": "red", "index": 2, "text": "500 Server Error"}}, "type": "value"}
+              ]
+            }
+          },
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": ["lastNotNull"],
+              "fields": ""
+            },
+            "pieType": "pie",
+            "tooltip": {"mode": "single", "sort": "none"},
+            "legend": {"displayMode": "table", "placement": "right", "values": ["value", "percent"]},
+            "displayLabels": ["name", "percent"]
+          },
+          "targets": [
+            {
+              "expr": "sum by (status) (rate(http_requests_total[5m]))",
+              "legendFormat": "{{status}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "📈 Request Rate by Endpoint",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "insertNulls": false,
+                "showPoints": "never",
+                "pointSize": 5,
+                "stacking": {"mode": "none", "group": "A"},
+                "axisPlacement": "auto",
+                "axisLabel": "",
+                "scaleDistribution": {"type": "linear"},
+                "hideFrom": {"legend": false, "tooltip": false, "vis": false}
+              },
+              "mappings": [],
+              "unit": "reqps"
+            }
+          },
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "desc"},
+            "legend": {"displayMode": "table", "placement": "bottom", "values": ["min", "max", "mean"]}
+          },
+          "targets": [
+            {
+              "expr": "sum by (endpoint) (rate(http_requests_total[1m]))",
+              "legendFormat": "{{endpoint}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "🔧 Business Operations Rate",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "fillOpacity": 20,
+                "gradientMode": "hue",
+                "spanNulls": false,
+                "insertNulls": false,
+                "showPoints": "never",
+                "pointSize": 5,
+                "stacking": {"mode": "none", "group": "A"},
+                "axisPlacement": "auto",
+                "axisLabel": "",
+                "scaleDistribution": {"type": "linear"},
+                "hideFrom": {"legend": false, "tooltip": false, "vis": false}
+              },
+              "mappings": [],
+              "unit": "ops"
+            }
+          },
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "desc"},
+            "legend": {"displayMode": "table", "placement": "bottom", "values": ["min", "max", "mean"]}
+          },
+          "targets": [
+            {
+              "expr": "rate(business_operations_total[1m])",
+              "legendFormat": "{{operation}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "title": "⚠️ Error Rate (%)",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 6, "x": 0, "y": 16},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "thresholds": {
+                "steps": [
+                  {"color": "green", "value": null},
+                  {"color": "yellow", "value": 1},
+                  {"color": "orange", "value": 5},
+                  {"color": "red", "value": 10}
+                ]
+              },
+              "unit": "percent",
+              "custom": {"displayMode": "lcd", "orientation": "horizontal"}
+            }
+          },
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": ["lastNotNull"],
+              "fields": ""
+            },
+            "orientation": "auto",
+            "textMode": "auto",
+            "colorMode": "background",
+            "graphMode": "area",
+            "justifyMode": "auto"
+          },
+          "targets": [
+            {
+              "expr": "sum(rate(http_requests_total{status=~\"4..|5..\"}[5m])) / sum(rate(http_requests_total[5m])) * 100",
+              "legendFormat": "Error Rate %",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "title": "🚦 Service Health Status",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 6, "x": 6, "y": 16},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [
+                {"options": {"0": {"color": "red", "index": 0, "text": "DOWN"}}, "type": "value"},
+                {"options": {"1": {"color": "green", "index": 1, "text": "UP"}}, "type": "value"}
+              ],
+              "thresholds": {
+                "steps": [
+                  {"color": "red", "value": null},
+                  {"color": "green", "value": 1}
+                ]
+              },
+              "unit": "short",
+              "custom": {"displayMode": "lcd", "orientation": "horizontal"}
+            }
+          },
+          "targets": [
+            {
+              "expr": "up{job=\"fastapi-app\"}",
+              "legendFormat": "FastAPI Health",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 8,
+          "title": "📊 Request Volume Over Time",
+          "type": "timeseries",
+          "gridPos": {"h": 4, "w": 12, "x": 12, "y": 16},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {
+                "drawStyle": "bars",
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "fillOpacity": 80,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "insertNulls": false,
+                "showPoints": "never",
+                "pointSize": 5,
+                "stacking": {"mode": "normal", "group": "A"},
+                "axisPlacement": "auto",
+                "axisLabel": "",
+                "scaleDistribution": {"type": "linear"},
+                "hideFrom": {"legend": false, "tooltip": false, "vis": false}
+              },
+              "mappings": [],
+              "unit": "short"
+            }
+          },
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "desc"},
+            "legend": {"displayMode": "list", "placement": "bottom"}
+          },
+          "targets": [
+            {
+              "expr": "sum by (method) (increase(http_requests_total[1m]))",
+              "legendFormat": "{{method}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "title": "⏱️ Response Time Heatmap",
+          "type": "heatmap",
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 20},
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "hideFrom": {"legend": false, "tooltip": false, "vis": false}
+              }
+            }
+          },
+          "options": {
+            "calculate": false,
+            "yAxis": {"unit": "s"},
+            "cellGap": 1,
+            "color": {"mode": "scheme", "scheme": "Spectral", "steps": 128},
+            "yBucketBound": "auto"
+          },
+          "targets": [
+            {
+              "expr": "sum(increase(http_request_duration_seconds_bucket[1m])) by (le)",
+              "legendFormat": "{{le}}",
+              "refId": "A",
+              "format": "heatmap"
+            }
+          ]
+        }
+      ],
+      "schemaVersion": 27,
+      "version": 0,
+      "uid": "fastapi-devops-complete"
+    }
